@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TitusAI Chat</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 0; background:#0b0f14; color:#e8eef6; }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 16px; }
+    .card { background:#111826; border:1px solid #223049; border-radius:12px; padding:16px; }
+    .row { display:flex; gap:10px; margin-top:12px; }
+    textarea { flex:1; resize:vertical; min-height:54px; border-radius:10px; border:1px solid #223049; padding:10px; background:#0b1220; color:#e8eef6; }
+    button { border:0; border-radius:10px; padding:10px 14px; background:#2d6cdf; color:white; cursor:pointer; font-weight:600; }
+    button:disabled { opacity:.6; cursor:not-allowed; }
+    .msg { padding:10px 12px; border-radius:10px; margin:10px 0; white-space:pre-wrap; }
+    .user { background:#1b2a44; border:1px solid #2a3f66; }
+    .bot  { background:#0f1f16; border:1px solid #1f3b2a; }
+    .meta { font-size:12px; opacity:.75; margin-bottom:6px; }
+    .top { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+    input { width:100%; max-width:520px; border-radius:10px; border:1px solid #223049; padding:10px; background:#0b1220; color:#e8eef6; }
+    a { color:#8ab4ff; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <h2 style="margin:0">TitusAI Web Chat</h2>
+      <div style="flex:1; min-width:280px">
+        <div class="meta">API Endpoint (Cloud Run)</div>
+        <input id="apiUrl" value="https://titusai-1037286239806.us-central1.run.app/chat" />
+        <div class="meta">Tip: opening the URL in a browser shows “Method Not Allowed” because it’s POST-only. This page sends POST.</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <div id="log"></div>
+
+      <div class="row">
+        <textarea id="msg" placeholder="Type: build, patch, status, logs…"></textarea>
+        <button id="sendBtn">Send</button>
+      </div>
+
+      <div class="meta" style="margin-top:10px">
+        Quick commands:
+        <a href="#" onclick="quick('build');return false;">build</a> |
+        <a href="#" onclick="quick('status');return false;">status</a> |
+        <a href="#" onclick="quick('logs');return false;">logs</a> |
+        <a href="#" onclick="quick('patch');return false;">patch</a>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const log = document.getElementById('log');
+  const msg = document.getElementById('msg');
+  const apiUrl = document.getElementById('apiUrl');
+  const sendBtn = document.getElementById('sendBtn');
+
+  function add(role, text) {
+    const div = document.createElement('div');
+    div.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
+    div.innerHTML = `<div class="meta">${role}</div>${escapeHtml(text)}`;
+    log.appendChild(div);
+    window.scrollTo(0, document.body.scrollHeight);
+  }
+
+  function escapeHtml(s) {
+    return (s || '').replace(/[&<>"']/g, c => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[c]));
+  }
+
+  async function send(text) {
+    const t = (text ?? msg.value).trim();
+    if (!t) return;
+
+    add('user', t);
+    msg.value = '';
+    sendBtn.disabled = true;
+
+    try {
+      const res = await fetch(apiUrl.value.trim(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: t })
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        add('titus', `HTTP ${res.status}\n` + (data.detail || JSON.stringify(data) || 'Request failed'));
+      } else {
+        add('titus', data.response ?? JSON.stringify(data, null, 2));
+      }
+    } catch (e) {
+      add('titus', 'Network error: ' + e.message);
+    } finally {
+      sendBtn.disabled = false;
+    }
+  }
+
+  function quick(t){ send(t); }
+  window.quick = quick;
+
+  sendBtn.addEventListener('click', () => send());
+  msg.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') send();
+  });
+
+  add('titus', 'Ready. Type a command (build/status/logs/patch) and press Send.');
+</script>
+</body>
+</html>
